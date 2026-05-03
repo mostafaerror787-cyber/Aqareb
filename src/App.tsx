@@ -31,7 +31,7 @@ import {
 
 // Firebase Imports
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 import { 
   getFirestore, 
   collection, 
@@ -148,6 +148,7 @@ export default function App() {
   const [orderConfirmed, setOrderConfirmed] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [products, setProducts] = useState<any[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
@@ -157,6 +158,7 @@ export default function App() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isCartBumping, setIsCartBumping] = useState(false);
+  const [toasts, setToasts] = useState<{ id: number, message: string }[]>([]);
 
   // Product Editing State
   const [isEditingProduct, setIsEditingProduct] = useState(false);
@@ -168,16 +170,30 @@ export default function App() {
 
   const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
 
+  const showToast = (message: string) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 3000);
+  };
+
   useEffect(() => {
-    // Sync Products (Public Access)
+    // Sync Products (Public Access) with persistent monitoring
+    setProductsLoading(true);
     const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
       const prods = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProducts(prods);
+      setProductsLoading(false);
       setIsDbConnected(true);
+      const source = snapshot.metadata.fromCache ? "Cache" : "Server";
+      console.log(`Colony Sync: ${prods.length} products integrated from ${source}.`);
     }, (error) => {
-      console.error("Product fetch failed:", error);
+      console.error("Colony Data Fetch Failure:", error);
       setIsDbConnected(false);
+      setProductsLoading(false);
+      handleFirestoreError(error, OperationType.GET, 'products');
     });
 
     return () => unsubscribe();
@@ -237,8 +253,27 @@ export default function App() {
   });
 
   const addToCart = (productId: string, size: string = 'L') => {
+    const product = products.find(p => p.id === productId);
     setIsCartBumping(true);
     setTimeout(() => setIsCartBumping(false), 300);
+
+    if (product) {
+      showToast(`${product.name.toUpperCase()} DEPLOYED TO BAG`);
+      
+      // Temporary button feedback for Quick Add buttons
+      const btn = document.querySelector(`[data-product-id="${productId}"]`) as HTMLButtonElement;
+      if (btn) {
+        const originalText = btn.textContent;
+        btn.textContent = 'DONE // STRIKE';
+        btn.style.backgroundColor = '#ccff00';
+        btn.style.color = 'black';
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.style.backgroundColor = '';
+          btn.style.color = '';
+        }, 1500);
+      }
+    }
 
     setCart(prev => {
       const existing = prev.find(item => item.id === productId && item.size === size);
@@ -355,7 +390,7 @@ export default function App() {
               <div className="flex items-center gap-2 px-3 py-1 bg-black/50 border border-white/10 rounded-full">
                 <div className={`w-1.5 h-1.5 rounded-full ${isDbConnected ? 'bg-[#ccff00] animate-pulse' : 'bg-red-500'}`} />
                 <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-400">
-                  {isDbConnected ? 'Terminal Online' : 'Terminal Offline'}
+                  {isDbConnected ? `Terminal Online (${products.length} Units)` : 'Terminal Offline'}
                 </span>
               </div>
             )}
@@ -385,17 +420,49 @@ export default function App() {
             <button className="hidden sm:block p-3 bg-white/5 rounded-full hover:bg-[#ccff00] hover:text-black transition-all">
               <Search className="w-4 h-4" />
             </button>
-            <motion.button 
-              onClick={() => setIsCartOpen(true)}
-              animate={isCartBumping ? { scale: [1, 1.2, 1] } : {}}
-              className={`px-5 py-2.5 bg-[#ccff00] text-black text-[10px] font-black uppercase tracking-tighter flex items-center gap-2 hover:bg-white transition-colors ${isCartBumping ? 'shadow-[0_0_20px_#ccff00]' : ''}`}
-              id="cart-btn"
-            >
-              CART ({cart.reduce((a, b) => a + b.quantity, 0)})
-            </motion.button>
+            <div className="relative">
+              <motion.button 
+                onClick={() => setIsCartOpen(true)}
+                animate={isCartBumping ? { scale: [1, 1.2, 1] } : {}}
+                className={`px-5 py-2.5 bg-[#ccff00] text-black text-[10px] font-black uppercase tracking-tighter flex items-center gap-2 hover:bg-white transition-colors ${isCartBumping ? 'shadow-[0_0_20px_#ccff00]' : ''}`}
+                id="cart-btn"
+              >
+                CART ({cart.reduce((a, b) => a + b.quantity, 0)})
+              </motion.button>
+              <AnimatePresence>
+                {isCartBumping && (
+                  <motion.span
+                    initial={{ opacity: 0, y: 0 }}
+                    animate={{ opacity: 1, y: -40 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute -top-2 -right-2 bg-white text-black rounded-full w-8 h-8 flex items-center justify-center text-[10px] font-black shadow-lg z-[60]"
+                  >
+                    +1
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </nav>
+
+      {/* Toast System */}
+      <div className="fixed bottom-8 right-8 z-[100] flex flex-col gap-4">
+        <AnimatePresence>
+          {toasts.map((toast) => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, x: 50, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 20, scale: 0.9 }}
+              className="bg-[#ccff00] text-black px-6 py-4 font-black text-xs uppercase tracking-[0.2em] shadow-[0_20px_50px_rgba(204,255,0,0.3)] flex items-center gap-3 border border-black/10"
+            >
+              <div className="w-2 h-2 bg-black rounded-full animate-pulse" />
+              {toast.message}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
 
       {/* Hero Section */}
       <header className="relative h-screen flex flex-col items-center justify-center overflow-hidden">
@@ -575,33 +642,40 @@ export default function App() {
           </div>
         </div>
 
-        {filteredProducts.length === 0 ? (
-          <div className="py-24 text-center border border-dashed border-white/10">
-            <ScorpionLogo className="w-16 h-16 mx-auto mb-6 text-zinc-800" />
-            <p className="font-black uppercase tracking-widest text-zinc-500">No venom found in this sector.</p>
-            <button 
-              onClick={() => { setSelectedCategories([]); setSelectedTags([]); }}
-              className="mt-4 text-[#ccff00] text-xs font-bold uppercase tracking-widest hover:underline"
-            >
-              Reset Filters
-            </button>
+        {productsLoading ? (
+          <div className="flex flex-col items-center justify-center py-40 gap-6">
+            <div className="w-16 h-16 border-t-2 border-[#ccff00] rounded-full animate-spin" />
+            <span className="text-[10px] font-black uppercase tracking-[0.4em] animate-pulse">Scanning Arsenal Databanks...</span>
           </div>
         ) : (
-          <motion.div 
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, margin: "-100px" }}
-            variants={{
-              hidden: { opacity: 0 },
-              show: {
-                opacity: 1,
-                transition: {
-                  staggerChildren: 0.1
-                }
-              }
-            }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8"
-          >
+          <>
+            {filteredProducts.length === 0 ? (
+              <div className="py-24 text-center border border-dashed border-white/10">
+                <ScorpionLogo className="w-16 h-16 mx-auto mb-6 text-zinc-800" />
+                <p className="font-black uppercase tracking-widest text-zinc-500">No venom found in this sector.</p>
+                <button 
+                  onClick={() => { setSelectedCategories([]); setSelectedTags([]); }}
+                  className="mt-4 text-[#ccff00] text-xs font-bold uppercase tracking-widest hover:underline"
+                >
+                  Reset Filters
+                </button>
+              </div>
+            ) : (
+              <motion.div 
+                initial="hidden"
+                whileInView="show"
+                viewport={{ once: true, margin: "-100px" }}
+                variants={{
+                  hidden: { opacity: 0 },
+                  show: {
+                    opacity: 1,
+                    transition: {
+                      staggerChildren: 0.1
+                    }
+                  }
+                }}
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8"
+              >
             {filteredProducts.map((product, idx) => (
               <motion.div 
                 key={product.id}
@@ -633,7 +707,8 @@ export default function App() {
                   />
                   <button 
                     onClick={(e) => { e.stopPropagation(); addToCart(product.id, 'L'); }}
-                    className="absolute bottom-0 left-0 right-0 bg-white text-black py-4 font-black uppercase text-xs translate-y-full group-hover:translate-y-0 transition-transform duration-300"
+                    data-product-id={product.id}
+                    className="absolute bottom-0 left-0 right-0 bg-white text-black py-4 font-black uppercase text-xs translate-y-full group-hover:translate-y-0 transition-all duration-300"
                   >
                     Quick Add — EGP {product.price}
                   </button>
@@ -649,7 +724,9 @@ export default function App() {
             ))}
           </motion.div>
         )}
-      </section>
+      </>
+    )}
+  </section>
 
       {/* About Section - Brutalist Style */}
       <section className="bg-[#ccff00] text-black py-24 px-6 overflow-hidden relative">
@@ -988,8 +1065,10 @@ export default function App() {
                 <button 
                   onClick={() => {
                     addToCart(selectedProduct.id, selectedSize);
-                    setSelectedProduct(null);
+                    // We don't close immediately to let the user see the feedback
+                    setTimeout(() => setSelectedProduct(null), 1200);
                   }}
+                  data-product-id={selectedProduct.id}
                   className="w-full bg-[#ccff00] text-black py-6 font-black uppercase tracking-widest text-sm hover:bg-white transition-all flex items-center justify-center gap-4 group"
                 >
                   Deploy to Bag
