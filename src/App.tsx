@@ -44,10 +44,20 @@ import {
   query,
   orderBy
 } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
+import firebaseConfigJson from '../firebase-applet-config.json';
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfigJson.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigJson.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfigJson.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigJson.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigJson.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfigJson.appId,
+};
+
+const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseConfigJson.firestoreDatabaseId;
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+const db = getFirestore(app, databaseId);
 const auth = getAuth(app);
 
 enum OperationType {
@@ -151,6 +161,7 @@ export default function App() {
   // Product Editing State
   const [isEditingProduct, setIsEditingProduct] = useState(false);
   const [editingProductData, setEditingProductData] = useState<any>(null);
+  const [tempImages, setTempImages] = useState<string[]>([]);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const SIZES = ['S', 'M', 'L', 'XL'];
@@ -378,18 +389,30 @@ export default function App() {
           <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black z-10" />
           <img 
             src="https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&q=80&w=2000" 
-            className="w-full h-full object-cover grayscale opacity-50 contrast-125"
+            className="w-full h-full object-cover grayscale opacity-50 contrast-125 transition-transform duration-[10s] hover:scale-110"
             alt="Streetwear model"
             referrerPolicy="no-referrer"
           />
         </div>
 
         <motion.div 
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, ease: "easeOut" }}
-          className="relative z-20 text-center px-4"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 1.2, ease: [0.33, 1, 0.68, 1] }}
+          className="relative z-20 text-center px-4 flex flex-col items-center"
         >
+          <div className="relative mb-8 group">
+            <motion.div 
+              animate={{ 
+                scale: [1, 1.1, 1],
+                opacity: [0.1, 0.2, 0.1]
+              }}
+              transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+              className="absolute inset-0 bg-[#ccff00]/40 blur-[100px] rounded-full" 
+            />
+            <ScorpionLogo className="w-48 h-48 lg:w-64 lg:h-64 text-[#ccff00] relative z-10 filter drop-shadow-[0_0_30px_rgba(204,255,0,0.5)] transition-transform duration-700 group-hover:scale-110" />
+          </div>
+
           <div className="inline-block px-3 py-1 bg-white text-black font-black text-xs uppercase mb-6 tracking-widest">
             Drop 001 // Venom Series
           </div>
@@ -584,13 +607,14 @@ export default function App() {
                   <motion.img 
                     src={product.image} 
                     alt={product.name}
-                    whileHover={{ scale: 1.1 }}
-                    transition={{ duration: 0.6, ease: [0.33, 1, 0.68, 1] }}
+                    whileHover={{ scale: 1.05, filter: 'grayscale(0%)' }}
+                    initial={{ filter: 'grayscale(100%)' }}
+                    transition={{ duration: 0.5, ease: 'easeOut' }}
                     onClick={() => {
                       setSelectedProduct(product);
                       setSelectedSize('L');
                     }}
-                    className="w-full h-full object-cover grayscale hover:grayscale-0"
+                    className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                   />
                   <button 
@@ -865,27 +889,27 @@ export default function App() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-xl flex items-center justify-center overflow-y-auto"
           >
-            <div className="w-full max-w-7xl min-h-screen lg:min-h-0 flex flex-col lg:flex-row gap-12 p-8 lg:p-12 relative">
+            <div className="w-full max-w-6xl flex flex-col lg:flex-row gap-6 sm:gap-10 p-4 sm:p-10 lg:p-12 relative my-auto">
               {/* Close Button */}
               <button 
                 onClick={() => setSelectedProduct(null)}
-                className="absolute top-8 right-8 z-[210] p-4 bg-white/5 rounded-full hover:bg-[#ccff00] hover:text-black transition-all"
+                className="fixed sm:absolute top-4 right-4 sm:top-8 sm:right-8 z-[210] p-3 sm:p-4 bg-[#ccff00] text-black rounded-full hover:bg-white hover:scale-110 transition-all shadow-[0_0_20px_rgba(204,255,0,0.3)]"
               >
-                <X className="w-8 h-8" />
+                <X className="w-5 h-5 sm:w-6 h-6" />
               </button>
 
-              {/* Image Cluster */}
-              <div className="w-full lg:w-3/5 flex flex-col gap-4">
-                <div className="relative aspect-[3/4] bg-zinc-900 overflow-hidden cursor-zoom-in group">
+              {/* Image Group */}
+              <div className="w-full lg:w-[55%] flex flex-col gap-4">
+                <div className="relative aspect-square sm:aspect-[4/5] lg:aspect-[3/4] bg-zinc-900/50 overflow-hidden cursor-zoom-in group max-h-[60vh] lg:max-h-[80vh]">
                   <AnimatePresence mode="wait">
                     <motion.img 
                       key={selectedProduct.images[activeImageIdx]}
                       src={selectedProduct.images[activeImageIdx]}
-                      initial={{ opacity: 0, scale: 1.1 }}
+                      initial={{ opacity: 0, scale: 1.05 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 1.1 }}
-                      transition={{ duration: 0.5 }}
-                      className="w-full h-full object-cover"
+                      exit={{ opacity: 0, scale: 1.05 }}
+                      transition={{ duration: 0.4 }}
+                      className="w-full h-full object-contain sm:object-cover"
                       alt={selectedProduct.name}
                     />
                   </AnimatePresence>
@@ -1108,7 +1132,9 @@ export default function App() {
               {!isAdminLoggedIn ? (
                 <form className="space-y-6" onSubmit={(e) => {
                   e.preventDefault();
-                  if (adminUsername === 'Mo' && adminPassword === '12345') {
+                  const validUsername = import.meta.env.VITE_ADMIN_USERNAME || 'Mo';
+                  const validPassword = import.meta.env.VITE_ADMIN_PASSWORD || '12345';
+                  if (adminUsername === validUsername && adminPassword === validPassword) {
                     setIsAdminLoggedIn(true);
                     setLoginError(false);
                   } else {
@@ -1425,7 +1451,7 @@ export default function App() {
                   <h2 className="text-4xl lg:text-6xl font-black uppercase tracking-tighter">CENTRAL <br /> ARSENAL</h2>
                 </div>
                 <button 
-                  onClick={() => { setIsEditingProduct(false); setEditingProductData(null); }}
+                  onClick={() => { setIsEditingProduct(false); setEditingProductData(null); setTempImages([]); }}
                   className="p-4 bg-white/5 rounded-full hover:bg-red-500 transition-all group"
                 >
                   <X className="w-8 h-8 group-hover:scale-110 transition-transform" />
@@ -1440,44 +1466,88 @@ export default function App() {
                       {editingProductData ? 'Modify Payload' : 'New Transmission'}
                     </h3>
                     
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2">
-                          <ImageIcon className="w-3 h-3" /> Image Payload (Link or Device)
-                        </label>
-                        <div className="flex gap-2">
-                          <input 
-                            type="text" 
-                            id="product-image"
-                            placeholder="Image URL"
-                            className="flex-1 bg-zinc-900 border border-white/5 p-3 text-xs outline-none focus:border-[#ccff00]"
-                          />
-                          <button 
-                            type="button"
-                            onClick={() => imageInputRef.current?.click()}
-                            className="p-3 bg-zinc-900 border border-white/5 hover:border-[#ccff00] text-zinc-500 hover:text-[#ccff00]"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
-                          <input 
-                            type="file" 
-                            ref={imageInputRef} 
-                            className="hidden" 
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  const imgInput = document.getElementById('product-image') as HTMLInputElement;
-                                  if (imgInput) imgInput.value = reader.result as string;
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                          />
+                        <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center justify-between">
+                            <span className="flex items-center gap-2"><ImageIcon className="w-3 h-3" /> Image Payload Network</span>
+                            <span className="text-[8px] opacity-50">{tempImages.length}/5 IMAGES</span>
+                          </label>
+                          <div className="flex gap-2">
+                            <input 
+                              type="text" 
+                              id="product-image-input"
+                              placeholder="Direct Image URL"
+                              className="flex-1 bg-zinc-900 border border-white/5 p-3 text-xs outline-none focus:border-[#ccff00]"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const input = e.currentTarget;
+                                  if (input.value && tempImages.length < 5) {
+                                    setTempImages([...tempImages, input.value]);
+                                    input.value = '';
+                                  }
+                                }
+                              }}
+                            />
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                const input = document.getElementById('product-image-input') as HTMLInputElement;
+                                if (input.value && tempImages.length < 5) {
+                                  setTempImages([...tempImages, input.value]);
+                                  input.value = '';
+                                }
+                              }}
+                              className="px-4 py-2 bg-[#ccff00] text-black font-black text-[10px] uppercase tracking-widest hover:bg-white transition-colors"
+                            >
+                              Add
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => imageInputRef.current?.click()}
+                              className="p-3 bg-zinc-900 border border-white/5 hover:border-[#ccff00] text-zinc-500 hover:text-[#ccff00]"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                            <input 
+                              type="file" 
+                              ref={imageInputRef} 
+                              className="hidden" 
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file && tempImages.length < 5) {
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    setTempImages([...tempImages, reader.result as string]);
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                          </div>
+
+                          {/* Image Preview List */}
+                          <div className="flex flex-wrap gap-2 mt-4">
+                            {tempImages.map((img, i) => (
+                              <div key={i} className="relative w-16 aspect-square group border border-white/10 overflow-hidden">
+                                <img src={img} className="w-full h-full object-cover" alt="" />
+                                <button 
+                                  onClick={() => setTempImages(tempImages.filter((_, idx) => idx !== i))}
+                                  className="absolute inset-0 bg-red-500/80 items-center justify-center hidden group-hover:flex transition-all"
+                                >
+                                  <X className="w-4 h-4 text-white" />
+                                </button>
+                              </div>
+                            ))}
+                            {tempImages.length === 0 && (
+                              <div className="w-full py-4 border border-dashed border-white/5 bg-white/[0.02] flex flex-col items-center justify-center">
+                                <ImageIcon className="w-4 h-4 text-zinc-700 mb-1" />
+                                <span className="text-[8px] text-zinc-600 font-bold uppercase">No images staged</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Callsign (Name)</label>
@@ -1538,11 +1608,10 @@ export default function App() {
                         const price = Number((document.getElementById('product-price') as HTMLInputElement).value);
                         const category = (document.getElementById('product-category') as HTMLSelectElement).value;
                         const tag = (document.getElementById('product-tag') as HTMLSelectElement).value;
-                        const image = (document.getElementById('product-image') as HTMLInputElement).value;
                         const description = (document.getElementById('product-desc') as HTMLTextAreaElement).value;
 
-                        if (!name || !price || !image) {
-                          window.alert('Required fields missing.');
+                        if (!name || !price || tempImages.length === 0) {
+                          window.alert('Required fields missing (Name, Price, and at least one Image).');
                           return;
                         }
 
@@ -1551,8 +1620,8 @@ export default function App() {
                           price,
                           category,
                           tag,
-                          image,
-                          images: [image], // Default set
+                          image: tempImages[0], 
+                          images: tempImages,
                           description,
                           specs: {
                             material: "Egyptian Cotton Blend",
@@ -1575,6 +1644,7 @@ export default function App() {
                           
                           setIsEditingProduct(false);
                           setEditingProductData(null);
+                          setTempImages([]);
                         } catch (err) {
                           handleFirestoreError(err, OperationType.WRITE, 'products');
                         } finally {
@@ -1589,7 +1659,7 @@ export default function App() {
                     
                     {editingProductData && (
                       <button 
-                        onClick={() => { setEditingProductData(null); }}
+                        onClick={() => { setEditingProductData(null); setTempImages([]); }}
                         className="w-full border border-white/10 text-white/50 py-3 font-black uppercase tracking-widest text-[10px] hover:text-white transition-all"
                       >
                         Cancel Edit
@@ -1658,12 +1728,12 @@ export default function App() {
                             <button 
                               onClick={() => {
                                 setEditingProductData(product);
+                                setTempImages(product.images || [product.image]);
                                 setTimeout(() => {
                                   (document.getElementById('product-name') as HTMLInputElement).value = product.name;
                                   (document.getElementById('product-price') as HTMLInputElement).value = String(product.price);
                                   (document.getElementById('product-category') as HTMLSelectElement).value = product.category;
                                   (document.getElementById('product-tag') as HTMLSelectElement).value = product.tag;
-                                  (document.getElementById('product-image') as HTMLInputElement).value = product.image;
                                   (document.getElementById('product-desc') as HTMLTextAreaElement).value = product.description;
                                 }, 100);
                               }}
