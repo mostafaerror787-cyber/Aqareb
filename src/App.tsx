@@ -166,14 +166,18 @@ export default function App() {
 
   const SIZES = ['S', 'M', 'L', 'XL'];
 
+  const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
+
   useEffect(() => {
     // Sync Products (Public Access)
     const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const prods = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProducts(prods);
+      setIsDbConnected(true);
     }, (error) => {
-      console.warn("Product fetch failed:", error);
+      console.error("Product fetch failed:", error);
+      setIsDbConnected(false);
     });
 
     return () => unsubscribe();
@@ -346,6 +350,16 @@ export default function App() {
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-[#050505]/90 backdrop-blur-md border-b border-white/5 py-4' : 'bg-transparent py-8'}`}>
         <div className="max-w-7xl mx-auto px-8 flex items-center justify-between">
           <div className="flex items-center gap-12">
+            {/* Database Connection Status for Admin */}
+            {isAdminLoggedIn && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-black/50 border border-white/10 rounded-full">
+                <div className={`w-1.5 h-1.5 rounded-full ${isDbConnected ? 'bg-[#ccff00] animate-pulse' : 'bg-red-500'}`} />
+                <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-400">
+                  {isDbConnected ? 'Terminal Online' : 'Terminal Offline'}
+                </span>
+              </div>
+            )}
+            
             <button 
               onClick={() => setIsMenuOpen(true)}
               className="lg:hidden p-2 hover:text-[#ccff00] transition-colors"
@@ -1610,31 +1624,45 @@ export default function App() {
                         const tag = (document.getElementById('product-tag') as HTMLSelectElement).value;
                         const description = (document.getElementById('product-desc') as HTMLTextAreaElement).value;
 
-                        if (!name || !price || tempImages.length === 0) {
-                          window.alert('Required fields missing (Name, Price, and at least one Image).');
-                          return;
-                        }
-
-                        const productData = {
-                          name,
-                          price,
-                          category,
-                          tag,
-                          image: tempImages[0], 
-                          images: tempImages,
-                          description,
-                          specs: {
-                            material: "Egyptian Cotton Blend",
-                            fit: "Oversized",
-                            care: "Specialized maintenance"
-                          },
-                          updatedAt: serverTimestamp(),
-                          createdAt: editingProductData ? editingProductData.createdAt : serverTimestamp()
-                        };
-
                         try {
                           const submitBtn = document.activeElement as HTMLButtonElement;
-                          if (submitBtn) submitBtn.disabled = true;
+                          if (submitBtn) {
+                            submitBtn.disabled = true;
+                            submitBtn.textContent = 'TRANSMITTING...';
+                          }
+
+                          // Capture any pending URL in the input field that wasn't "added"
+                          const pendingInput = document.getElementById('product-image-input') as HTMLInputElement;
+                          let finalImages = [...tempImages];
+                          if (pendingInput && pendingInput.value && finalImages.length < 5) {
+                            finalImages.push(pendingInput.value);
+                          }
+
+                          if (!name || !price || finalImages.length === 0) {
+                            window.alert('CRITICAL: Required fields missing (Name, Price, or Image).');
+                            if (submitBtn) {
+                              submitBtn.disabled = false;
+                              submitBtn.textContent = editingProductData ? 'DEPLOY UPDATE' : 'COMMENCE DEPLOYMENT';
+                            }
+                            return;
+                          }
+
+                          const productData = {
+                            name,
+                            price,
+                            category,
+                            tag,
+                            image: finalImages[0], 
+                            images: finalImages,
+                            description,
+                            specs: {
+                              material: editingProductData?.specs?.material || "Egyptian Cotton Blend",
+                              fit: editingProductData?.specs?.fit || "Oversized",
+                              care: editingProductData?.specs?.care || "Specialized maintenance"
+                            },
+                            updatedAt: serverTimestamp(),
+                            createdAt: editingProductData?.createdAt || serverTimestamp()
+                          };
                           
                           if (editingProductData) {
                             await updateDoc(doc(db, 'products', editingProductData.id), productData);
@@ -1642,17 +1670,31 @@ export default function App() {
                             await addDoc(collection(db, 'products'), productData);
                           }
                           
+                          // SUCCESS FEEDBACK
+                          console.log("Product saved successfully to Firestore.");
+                          
                           setIsEditingProduct(false);
                           setEditingProductData(null);
                           setTempImages([]);
+                          if (pendingInput) pendingInput.value = '';
+                          
+                          // Show a brief success alert to the user
+                          window.alert('SUCCESS: Mission accomplished. Product is now live across all devices.');
+
                         } catch (err) {
+                          console.error("Save Error:", err);
                           handleFirestoreError(err, OperationType.WRITE, 'products');
+                          window.alert('ERROR: Connection failed. Check your network or permissions.');
                         } finally {
-                          const submitBtn = document.activeElement as HTMLButtonElement;
-                          if (submitBtn) submitBtn.disabled = false;
+                          const submitBtn = document.getElementById('product-submit-btn') as HTMLButtonElement;
+                          if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = editingProductData ? 'DEPLOY UPDATE' : 'COMMENCE DEPLOYMENT';
+                          }
                         }
                       }}
-                      className="w-full bg-[#ccff00] text-black py-4 font-black uppercase tracking-widest text-xs hover:bg-white transition-all shadow-[0_0_20px_rgba(204,255,0,0.2)]"
+                      id="product-submit-btn"
+                      className="w-full bg-[#ccff00] text-black py-4 font-black uppercase tracking-widest text-xs hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_20px_rgba(204,255,0,0.2)]"
                     >
                       {editingProductData ? 'DEPLOY UPDATE' : 'COMMENCE DEPLOYMENT'}
                     </button>
@@ -1728,6 +1770,7 @@ export default function App() {
                             <button 
                               onClick={() => {
                                 setEditingProductData(product);
+                                setIsEditingProduct(true);
                                 setTempImages(product.images || [product.image]);
                                 setTimeout(() => {
                                   (document.getElementById('product-name') as HTMLInputElement).value = product.name;
