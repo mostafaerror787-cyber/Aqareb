@@ -25,11 +25,30 @@ import {
   Database,
   Maximize2,
   Eye,
+  ArrowUp,
+  BarChart as BarChartIcon,
+  PieChart as PieChartIcon,
+  LineChart as LineChartIcon,
   ClipboardList,
   Image as ImageIcon,
   DollarSign,
   Tag as TagIcon
 } from 'lucide-react';
+
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell
+} from 'recharts';
 
 // Firebase Imports
 import { initializeApp } from 'firebase/app';
@@ -141,7 +160,7 @@ export default function App() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
-    return localStorage.getItem('agrab_admin_session') === 'true';
+    return localStorage.getItem('aqrab_admin_session') === 'true';
   });
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
   const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
@@ -151,6 +170,7 @@ export default function App() {
   const [loginError, setLoginError] = useState(false);
   const [orderConfirmed, setOrderConfirmed] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   // Image Compression Utility
   const compressImage = (base64Str: string): Promise<string> => {
     return new Promise((resolve) => {
@@ -193,7 +213,7 @@ export default function App() {
   const [selectedSize, setSelectedSize] = useState<string>('L');
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [cart, setCart] = useState<{ id: string, quantity: number, size: string }[]>(() => {
-    const saved = localStorage.getItem('agrab_cart');
+    const saved = localStorage.getItem('aqrab_cart');
     return saved ? JSON.parse(saved) : [];
   });
   const [scrolled, setScrolled] = useState(false);
@@ -211,11 +231,11 @@ export default function App() {
   const SIZES = ['S', 'M', 'L', 'XL'];
 
   useEffect(() => {
-    localStorage.setItem('agrab_admin_session', String(isAdminLoggedIn));
+    localStorage.setItem('aqrab_admin_session', String(isAdminLoggedIn));
   }, [isAdminLoggedIn]);
 
   useEffect(() => {
-    localStorage.setItem('agrab_cart', JSON.stringify(cart));
+    localStorage.setItem('aqrab_cart', JSON.stringify(cart));
   }, [cart]);
 
   const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
@@ -287,7 +307,10 @@ export default function App() {
   }, [selectedProduct]);
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+      setShowBackToTop(window.scrollY > 800);
+    };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -408,7 +431,7 @@ export default function App() {
               className="mt-12 text-center"
             >
               <h2 className="text-5xl font-black tracking-[0.8em] uppercase text-white mb-4">
-                AGRAB
+                AQRAB
               </h2>
               <div className="w-64 h-[2px] bg-white/10 mx-auto relative overflow-hidden">
                 <motion.div 
@@ -444,7 +467,7 @@ export default function App() {
 
       {/* Navigation */}
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-[#050505]/90 backdrop-blur-md border-b border-white/5 py-4' : 'bg-transparent py-8'}`}>
-        <div className="max-w-7xl mx-auto px-8 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-8 flex items-center justify-between relative">
           <div className="flex items-center gap-12">
             {/* Database Connection Status for Admin */}
             {isAdminLoggedIn && (
@@ -456,13 +479,6 @@ export default function App() {
               </div>
             )}
             
-            <button 
-              onClick={() => setIsMenuOpen(true)}
-              className="lg:hidden p-2 hover:text-[#ccff00] transition-colors"
-              id="menu-btn"
-            >
-              <Menu />
-            </button>
             <div className="hidden lg:flex items-center gap-10 font-bold text-[10px] tracking-[0.3em] uppercase opacity-70">
               <a href="#" className="hover:text-[#ccff00] transition-colors">Collections</a>
               <a href="#" className="hover:text-[#ccff00] transition-colors">The Lab</a>
@@ -470,11 +486,23 @@ export default function App() {
             </div>
           </div>
 
-          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3 cursor-pointer group" onClick={() => setIsAdminOpen(true)}>
-            <ScorpionLogo className="w-8 h-8 text-[#ccff00] transition-transform group-hover:scale-110" />
-            <h1 className="text-2xl font-black tracking-tighter uppercase group-hover:text-[#ccff00] transition-colors">
-              AGRAB
-            </h1>
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-4 group">
+            <button 
+              onClick={() => setIsMenuOpen(true)}
+              className="p-2 hover:text-[#ccff00] transition-colors"
+              id="menu-btn"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <div 
+              className="flex items-center gap-3 cursor-pointer" 
+              onClick={() => setIsAdminOpen(true)}
+            >
+              <ScorpionLogo className="w-8 h-8 text-[#ccff00] transition-transform group-hover:scale-110" />
+              <h1 className="text-2xl font-black tracking-tighter uppercase group-hover:text-[#ccff00] transition-colors">
+                AQRAB
+              </h1>
+            </div>
           </div>
 
           <div className="flex items-center gap-6">
@@ -580,7 +608,7 @@ export default function App() {
           <div className="flex animate-marquee">
             {[...Array(6)].map((_, i) => (
               <span key={i} className="text-sm font-black uppercase tracking-widest px-8 flex items-center gap-4">
-                AGRAB / عـقـرب <div className="w-2 h-2 bg-black rounded-full" />
+                AQRAB / عـقـرب <div className="w-2 h-2 bg-black rounded-full" />
                 NEW DROP ONLINE <div className="w-2 h-2 bg-[#ccff00] rounded-full border border-black" />
                 STRIKE THE STREETS <div className="w-2 h-2 bg-black rounded-full" />
               </span>
@@ -618,14 +646,14 @@ export default function App() {
             </div>
             
             <div className="order-1 lg:order-2">
-              <span className="text-[#ccff00] font-mono text-[10px] tracking-[0.6em] mb-6 block opacity-50 uppercase">Origin: Saharan Depths // AGRV-099</span>
+              <span className="text-[#ccff00] font-mono text-[10px] tracking-[0.6em] mb-6 block opacity-50 uppercase">Origin: Saharan Depths // AQRV-099</span>
               <h3 className="text-6xl lg:text-9xl font-black uppercase tracking-tighter mb-10 leading-[0.8] drop-shadow-2xl">
                 BORN IN <br /> <span className="text-[#ccff00] italic">SILENCE.</span>
               </h3>
               
               <div className="space-y-8 mb-16">
                 <p className="text-white/90 text-xl lg:text-3xl font-bold leading-[1.1] max-w-xl tracking-tight">
-                  AGRAB is the pulse of the underground. 
+                  AQRAB is the pulse of the underground. 
                   <span className="block mt-4 text-zinc-500 text-lg font-medium leading-relaxed">
                     We craft armor for the modern predator. Each piece is a fusion of biological efficiency and urban edge, designed for those who move with silent authority.
                   </span>
@@ -1435,6 +1463,30 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* Revenue Growth Chart */}
+                  <div className="bg-black/40 border border-white/5 p-6 mb-8 h-64">
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                       <LineChartIcon className="w-3 h-3 text-[#ccff00]" /> Revenue Performance Cycle
+                    </p>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={[
+                        { name: 'D1', val: 4000 },
+                        { name: 'D2', val: 3000 },
+                        { name: 'D3', val: 5000 },
+                        { name: 'D4', val: 2780 },
+                        { name: 'D5', val: 1890 },
+                        { name: 'D6', val: 2390 },
+                        { name: 'D7', val: 3490 },
+                      ]}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#222" />
+                        <XAxis dataKey="name" fontSize={8} stroke="#444" />
+                        <YAxis fontSize={8} stroke="#444" />
+                        <Tooltip contentStyle={{ background: '#000', border: '1px solid #ccff00', fontSize: '10px' }} />
+                        <Line type="monotone" dataKey="val" stroke="#ccff00" strokeWidth={2} dot={{ r: 3, fill: '#ccff00' }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+
                   <div className="p-6 bg-white/5 border border-white/5">
                     <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-6">Order Volume by Status</p>
                     <div className="space-y-4">
@@ -1464,6 +1516,29 @@ export default function App() {
                 <div className="w-full lg:w-80 space-y-6">
                   <div className="p-6 bg-[#ccff00]/5 border border-[#ccff00]/20">
                     <h4 className="text-[10px] font-bold text-[#ccff00] uppercase tracking-widest mb-4">Inventory Distribution</h4>
+                    <div className="h-48 mb-4">
+                       <ResponsiveContainer width="100%" height="100%">
+                         <PieChart>
+                           <Pie
+                              data={categories.map((cat, i) => ({
+                                name: cat,
+                                value: products.filter(p => p.category === cat).length
+                              }))}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={30}
+                              outerRadius={50}
+                              stroke="none"
+                              dataKey="value"
+                            >
+                              {categories.map((_, index) => (
+                                <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#ccff00' : '#333'} />
+                              ))}
+                            </Pie>
+                            <Tooltip contentStyle={{ background: '#000', border: '1px solid #ccff00', fontSize: '10px' }} />
+                         </PieChart>
+                       </ResponsiveContainer>
+                    </div>
                     <div className="space-y-3">
                       {categories.map(cat => (
                         <div key={cat} className="flex justify-between items-center text-[10px] font-black uppercase">
@@ -1471,6 +1546,26 @@ export default function App() {
                           <span className="font-mono">{products.filter(p => p.category === cat).length} Units</span>
                         </div>
                       ))}
+                    </div>
+                  </div>
+
+                  <div className="p-6 bg-white/5 border border-white/5">
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <BarChartIcon className="w-3 h-3 text-[#ccff00]" /> Growth Trend
+                    </p>
+                    <div className="h-32">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={[
+                          { name: 'M1', val: 12 },
+                          { name: 'M2', val: 19 },
+                          { name: 'M3', val: 25 },
+                          { name: 'M4', val: 32 },
+                        ]}>
+                          <Bar dataKey="val" fill="#ccff00" />
+                          <XAxis dataKey="name" hide />
+                          <Tooltip contentStyle={{ background: '#000', border: '1px solid #ccff00', fontSize: '10px' }} />
+                        </BarChart>
+                      </ResponsiveContainer>
                     </div>
                   </div>
 
@@ -2240,6 +2335,23 @@ export default function App() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+      {/* Back to Top */}
+      <AnimatePresence>
+        {showBackToTop && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.5, y: 50 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.5, y: 50 }}
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="fixed bottom-12 left-12 z-[200] p-5 bg-[#ccff00] text-black shadow-[0_20px_40px_rgba(204,255,0,0.3)] hover:bg-white transition-all group"
+          >
+            <ArrowUp className="w-6 h-6 group-hover:-translate-y-1 transition-transform" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+               <span className="text-[8px] font-black uppercase tracking-widest bg-black text-white px-2 py-1">Return to Summit</span>
+            </div>
+          </motion.button>
         )}
       </AnimatePresence>
     </div>
