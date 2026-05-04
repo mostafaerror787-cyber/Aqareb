@@ -23,6 +23,7 @@ import {
   History,
   TrendingUp,
   Database,
+  Maximize2,
   ClipboardList,
   Image as ImageIcon,
   DollarSign,
@@ -138,7 +139,9 @@ export default function App() {
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
-  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
+    return localStorage.getItem('agrab_admin_session') === 'true';
+  });
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
   const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -147,13 +150,51 @@ export default function App() {
   const [loginError, setLoginError] = useState(false);
   const [orderConfirmed, setOrderConfirmed] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  // Image Compression Utility
+  const compressImage = (base64Str: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = base64Str;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        // Using low quality for base64 storage efficiency
+        resolve(canvas.toDataURL('image/jpeg', 0.6));
+      };
+    });
+  };
+
   const [products, setProducts] = useState<any[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string>('L');
-  const [cart, setCart] = useState<{ id: string, quantity: number, size: string }[]>([]);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [cart, setCart] = useState<{ id: string, quantity: number, size: string }[]>(() => {
+    const saved = localStorage.getItem('agrab_cart');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [scrolled, setScrolled] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -168,7 +209,16 @@ export default function App() {
 
   const SIZES = ['S', 'M', 'L', 'XL'];
 
+  useEffect(() => {
+    localStorage.setItem('agrab_admin_session', String(isAdminLoggedIn));
+  }, [isAdminLoggedIn]);
+
+  useEffect(() => {
+    localStorage.setItem('agrab_cart', JSON.stringify(cart));
+  }, [cart]);
+
   const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
 
   const showToast = (message: string) => {
     const id = Date.now();
@@ -181,14 +231,24 @@ export default function App() {
   useEffect(() => {
     // Sync Products (Public Access) with persistent monitoring
     setProductsLoading(true);
-    const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
+    // Removing orderBy temporarily to ensure ALL products show up even if createdAt is missing
+    const q = collection(db, 'products');
     const unsubscribe = onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
       const prods = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setProducts(prods);
+      // Sort manually in JS to be safe
+      const sortedProds = prods.sort((a: any, b: any) => {
+        const dateA = a.createdAt?.seconds || 0;
+        const dateB = b.createdAt?.seconds || 0;
+        return dateB - dateA;
+      });
+      
+      console.log("DATABASE SNAPSHOT RECEIVED:", sortedProds.length, "items");
+      setProducts(sortedProds);
       setProductsLoading(false);
       setIsDbConnected(true);
+      setLastSynced(new Date().toLocaleTimeString());
       const source = snapshot.metadata.fromCache ? "Cache" : "Server";
-      console.log(`Colony Sync: ${prods.length} products integrated from ${source}.`);
+      console.log(`Colony Sync: ${sortedProds.length} products integrated from ${source}.`);
     }, (error) => {
       console.error("Colony Data Fetch Failure:", error);
       setIsDbConnected(false);
@@ -390,7 +450,7 @@ export default function App() {
               <div className="flex items-center gap-2 px-3 py-1 bg-black/50 border border-white/10 rounded-full">
                 <div className={`w-1.5 h-1.5 rounded-full ${isDbConnected ? 'bg-[#ccff00] animate-pulse' : 'bg-red-500'}`} />
                 <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-400">
-                  {isDbConnected ? `Terminal Online (${products.length} Units)` : 'Terminal Offline'}
+                  {isDbConnected ? `Terminal Online (${products.length} Units) // Last Sync: ${lastSynced}` : 'Terminal Offline'}
                 </span>
               </div>
             )}
@@ -991,7 +1051,10 @@ export default function App() {
 
               {/* Image Group */}
               <div className="w-full lg:w-[55%] flex flex-col gap-4">
-                <div className="relative aspect-square sm:aspect-[4/5] lg:aspect-[3/4] bg-zinc-900/50 overflow-hidden cursor-zoom-in group max-h-[60vh] lg:max-h-[80vh]">
+                <div 
+                  onClick={() => setZoomedImage(selectedProduct.images[activeImageIdx])}
+                  className="relative aspect-square sm:aspect-[4/5] lg:aspect-[3/4] bg-zinc-900/50 overflow-hidden cursor-zoom-in group max-h-[60vh] lg:max-h-[80vh]"
+                >
                   <AnimatePresence mode="wait">
                     <motion.img 
                       key={selectedProduct.images[activeImageIdx]}
@@ -1004,6 +1067,13 @@ export default function App() {
                       alt={selectedProduct.name}
                     />
                   </AnimatePresence>
+                  
+                  {/* Zoom Hint */}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                    <div className="bg-[#ccff00] text-black p-4 rounded-full scale-50 group-hover:scale-100 transition-transform duration-500">
+                      <Maximize2 className="w-6 h-6" />
+                    </div>
+                  </div>
                 </div>
                 {/* Thumbnails */}
                 <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
@@ -1471,6 +1541,7 @@ export default function App() {
                               <div className="space-y-2">
                                 <p className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Contact Signal</p>
                                 <p className="text-[12px] font-mono text-white border-b border-white/5 pb-1 w-fit">{order.customerInfo.phone}</p>
+                                <p className="text-[10px] font-mono text-zinc-400 mt-1">{order.customerInfo.email}</p>
                               </div>
                               <div className="space-y-2">
                                 <p className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Target Location</p>
@@ -1500,6 +1571,22 @@ export default function App() {
                                   onClick={async (e) => {
                                     e.stopPropagation();
                                     await updateDoc(doc(db, 'orders', order.id), { status: 'shipped' });
+                                    
+                                    // Send Shipping Notification
+                                    try {
+                                      await fetch('/api/notify', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          email: order.customerInfo.email,
+                                          customerName: order.customerInfo.name,
+                                          orderId: order.id.slice(-8),
+                                          status: 'shipped'
+                                        })
+                                      });
+                                    } catch (notifyErr) {
+                                      console.error("Shipping Notification Relay Failure:", notifyErr);
+                                    }
                                   }}
                                   className="flex-1 bg-[#ccff00] text-black py-3 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all shadow-[0_0_20px_rgba(204,255,0,0.2)]"
                                 >
@@ -1571,12 +1658,16 @@ export default function App() {
                               id="product-image-input"
                               placeholder="Direct Image URL"
                               className="flex-1 bg-zinc-900 border border-white/5 p-3 text-xs outline-none focus:border-[#ccff00]"
-                              onKeyDown={(e) => {
+                              onKeyDown={async (e) => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
                                   const input = e.currentTarget;
                                   if (input.value && tempImages.length < 5) {
-                                    setTempImages([...tempImages, input.value]);
+                                    let finalVal = input.value;
+                                    if (finalVal.startsWith('data:image')) {
+                                      finalVal = await compressImage(finalVal);
+                                    }
+                                    setTempImages([...tempImages, finalVal]);
                                     input.value = '';
                                   }
                                 }
@@ -1584,10 +1675,14 @@ export default function App() {
                             />
                             <button 
                               type="button"
-                              onClick={() => {
+                              onClick={async () => {
                                 const input = document.getElementById('product-image-input') as HTMLInputElement;
                                 if (input.value && tempImages.length < 5) {
-                                  setTempImages([...tempImages, input.value]);
+                                  let finalVal = input.value;
+                                  if (finalVal.startsWith('data:image')) {
+                                    finalVal = await compressImage(finalVal);
+                                  }
+                                  setTempImages([...tempImages, finalVal]);
                                   input.value = '';
                                 }
                               }}
@@ -1611,8 +1706,10 @@ export default function App() {
                                 const file = e.target.files?.[0];
                                 if (file && tempImages.length < 5) {
                                   const reader = new FileReader();
-                                  reader.onloadend = () => {
-                                    setTempImages([...tempImages, reader.result as string]);
+                                  reader.onloadend = async () => {
+                                    const compressed = await compressImage(reader.result as string);
+                                    setTempImages([...tempImages, compressed]);
+                                    showToast("UNIT IMAGE OPTIMIZED");
                                   };
                                   reader.readAsDataURL(file);
                                 }
@@ -1714,7 +1811,11 @@ export default function App() {
                           const pendingInput = document.getElementById('product-image-input') as HTMLInputElement;
                           let finalImages = [...tempImages];
                           if (pendingInput && pendingInput.value && finalImages.length < 5) {
-                            finalImages.push(pendingInput.value);
+                            let val = pendingInput.value;
+                            if (val.startsWith('data:image')) {
+                              val = await compressImage(val);
+                            }
+                            finalImages.push(val);
                           }
 
                           if (!name || !price || finalImages.length === 0) {
@@ -1745,25 +1846,25 @@ export default function App() {
                           
                           if (editingProductData) {
                             await updateDoc(doc(db, 'products', editingProductData.id), productData);
+                            showToast("PROTOCOL: UNIT UPDATED IN ARSENAL");
                           } else {
                             await addDoc(collection(db, 'products'), productData);
+                            showToast("PROTOCOL: NEW UNIT DEPLOYED TO DATABASE");
                           }
                           
-                          // SUCCESS FEEDBACK
-                          console.log("Product saved successfully to Firestore.");
-                          
+                          // Reset Form
+                          (document.getElementById('product-name') as HTMLInputElement).value = '';
+                          (document.getElementById('product-price') as HTMLInputElement).value = '';
+                          (document.getElementById('product-desc') as HTMLTextAreaElement).value = '';
+                          setTempImages([]);
                           setIsEditingProduct(false);
                           setEditingProductData(null);
-                          setTempImages([]);
                           if (pendingInput) pendingInput.value = '';
-                          
-                          // Show a brief success alert to the user
-                          window.alert('SUCCESS: Mission accomplished. Product is now live across all devices.');
 
                         } catch (err) {
                           console.error("Save Error:", err);
+                          showToast("CRITICAL: DATA TRANSMISSION FAILED");
                           handleFirestoreError(err, OperationType.WRITE, 'products');
-                          window.alert('ERROR: Connection failed. Check your network or permissions.');
                         } finally {
                           const submitBtn = document.getElementById('product-submit-btn') as HTMLButtonElement;
                           if (submitBtn) {
@@ -1829,20 +1930,47 @@ export default function App() {
 
                 {/* Product List */}
                 <div className="lg:col-span-2 space-y-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">
+                      Arsenal Inventory ({products.length} Units)
+                    </h3>
+                    <div className="flex items-center gap-4">
+                       <button 
+                         onClick={() => { setProductsLoading(true); setIsDbConnected(false); setTimeout(() => setIsDbConnected(true), 500); }}
+                         className="text-[#ccff00] text-[8px] font-black uppercase tracking-widest hover:underline flex items-center gap-2"
+                       >
+                         <Database className="w-3 h-3" />
+                         Force Link
+                       </button>
+                    </div>
+                  </div>
+
                   <div className="grid sm:grid-cols-2 gap-6">
+                    {products.length === 0 && !productsLoading && (
+                      <div className="col-span-full py-24 text-center border border-dashed border-white/10 rounded-lg">
+                        <Package className="w-12 h-12 mx-auto mb-4 text-zinc-800" />
+                        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600">No units detected in armory.</p>
+                      </div>
+                    )}
                     {products.map(product => (
                       <div key={product.id} className="bg-zinc-950 border border-white/5 p-4 flex gap-6 group">
-                        <div className="w-24 aspect-[3/4] bg-zinc-900 border border-white/5 overflow-hidden">
-                          <img src={product.image} className="w-full h-full object-cover" alt={product.name} />
-                        </div>
-                        <div className="flex-1 flex flex-col justify-between">
-                          <div>
-                            <div className="flex justify-between items-start">
-                              <h4 className="font-black uppercase tracking-tighter text-xl">{product.name}</h4>
-                              <span className="text-[10px] bg-white/5 px-2 py-1 uppercase">{product.tag}</span>
+                        <div className="w-24 aspect-[3/4] bg-zinc-900 border border-white/5 overflow-hidden flex-shrink-0">
+                          {product.image ? (
+                            <img src={product.image} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-zinc-800">
+                              <ImageIcon className="w-8 h-8" />
                             </div>
-                            <p className="text-[#ccff00] font-mono text-sm mt-1">EGP {product.price}</p>
-                            <p className="text-[10px] text-zinc-500 uppercase mt-2 tracking-widest">{product.category}</p>
+                          )}
+                        </div>
+                        <div className="flex-1 flex flex-col justify-between min-w-0">
+                          <div>
+                            <div className="flex justify-between items-start gap-2">
+                              <h4 className="font-black uppercase tracking-tighter text-lg truncate leading-tight">{product.name || 'UNNAMED UNIT'}</h4>
+                              <span className="text-[8px] bg-white/5 px-2 py-1 uppercase font-bold whitespace-nowrap">{product.tag || 'NO TAG'}</span>
+                            </div>
+                            <p className="text-[#ccff00] font-mono text-sm mt-1">EGP {product.price || 0}</p>
+                            <p className="text-[10px] text-zinc-500 uppercase mt-2 tracking-widest truncate">{product.category || 'GENERAL'}</p>
                           </div>
                           
                           <div className="flex gap-2">
@@ -1852,11 +1980,16 @@ export default function App() {
                                 setIsEditingProduct(true);
                                 setTempImages(product.images || [product.image]);
                                 setTimeout(() => {
-                                  (document.getElementById('product-name') as HTMLInputElement).value = product.name;
-                                  (document.getElementById('product-price') as HTMLInputElement).value = String(product.price);
-                                  (document.getElementById('product-category') as HTMLSelectElement).value = product.category;
-                                  (document.getElementById('product-tag') as HTMLSelectElement).value = product.tag;
-                                  (document.getElementById('product-desc') as HTMLTextAreaElement).value = product.description;
+                                  const nameEl = document.getElementById('product-name') as HTMLInputElement;
+                                  const priceEl = document.getElementById('product-price') as HTMLInputElement;
+                                  const catEl = document.getElementById('product-category') as HTMLSelectElement;
+                                  const tagEl = document.getElementById('product-tag') as HTMLSelectElement;
+                                  const descEl = document.getElementById('product-desc') as HTMLTextAreaElement;
+                                  if (nameEl) nameEl.value = product.name || '';
+                                  if (priceEl) priceEl.value = String(product.price || '');
+                                  if (catEl) catEl.value = product.category || 'Upperwear';
+                                  if (tagEl) tagEl.value = product.tag || 'NEW';
+                                  if (descEl) descEl.value = product.description || '';
                                 }, 100);
                               }}
                               className="flex-1 flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 p-3 text-[10px] font-black uppercase tracking-widest transition-colors"
@@ -1865,8 +1998,13 @@ export default function App() {
                             </button>
                             <button 
                               onClick={async () => {
-                                if(window.confirm('Eradicate this transmission?')) {
-                                  await deleteDoc(doc(db, 'products', product.id));
+                                if(window.confirm('PURGE THIS DATA PERMANENTLY?')) {
+                                  try {
+                                    await deleteDoc(doc(db, 'products', product.id));
+                                    showToast("UNIT PURGED FROM DATABASE");
+                                  } catch (e) {
+                                    showToast("PURGE FAILED");
+                                  }
                                 }
                               }}
                               className="p-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white transition-all border border-red-500/20"
@@ -1915,12 +2053,13 @@ export default function App() {
                     const inputs = form.querySelectorAll('input, textarea');
                     const customerInfo = {
                       name: (inputs[0] as HTMLInputElement).value + ' ' + (inputs[1] as HTMLInputElement).value,
-                      phone: (inputs[2] as HTMLInputElement).value,
-                      address: (inputs[3] as HTMLTextAreaElement).value,
+                      email: (inputs[2] as HTMLInputElement).value,
+                      phone: (inputs[3] as HTMLInputElement).value,
+                      address: (inputs[4] as HTMLTextAreaElement).value,
                     };
 
                     try {
-                      await addDoc(collection(db, 'orders'), {
+                      const orderData = {
                         items: cart.map(item => {
                           const p = products.find(prod => prod.id === item.id);
                           return {
@@ -1935,7 +2074,28 @@ export default function App() {
                         status: 'pending',
                         customerInfo,
                         createdAt: serverTimestamp()
-                      });
+                      };
+
+                      const docRef = await addDoc(collection(db, 'orders'), orderData);
+                      
+                      // Notify Customer via Server Proxy
+                      try {
+                        await fetch('/api/notify', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            email: customerInfo.email,
+                            customerName: customerInfo.name,
+                            orderId: docRef.id.slice(-8),
+                            status: 'pending',
+                            items: orderData.items,
+                            total: orderData.total
+                          })
+                        });
+                      } catch (notifyErr) {
+                        console.error("Notification Relay Failure:", notifyErr);
+                      }
+
                       setOrderConfirmed(true); 
                       setCart([]); 
                     } catch (err) {
@@ -1951,6 +2111,11 @@ export default function App() {
                         <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Last Name</label>
                         <input required type="text" className="w-full bg-zinc-900 border-none p-4 text-sm font-mono focus:ring-1 focus:ring-[#ccff00]" placeholder="SALEM" />
                       </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Contact Email</label>
+                      <input required type="email" className="w-full bg-zinc-900 border-none p-4 text-sm font-mono focus:ring-1 focus:ring-[#ccff00]" placeholder="MAZEN@COLONY.NET" />
                     </div>
 
                     <div className="space-y-2">
@@ -2015,6 +2180,48 @@ export default function App() {
                 </div>
               )}
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Immersive Image Preview */}
+      <AnimatePresence>
+        {zoomedImage && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            onClick={() => setZoomedImage(null)}
+            className="fixed inset-0 z-[500] bg-black/95 backdrop-blur-2xl flex items-center justify-center cursor-zoom-out p-4 md:p-12"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="relative w-full h-full flex items-center justify-center"
+            >
+              <img 
+                src={zoomedImage} 
+                className="max-w-full max-h-full object-contain shadow-[0_40px_100px_rgba(0,0,0,0.5)] border border-white/5" 
+                alt="Enlarged view" 
+                referrerPolicy="no-referrer"
+              />
+              
+              <button 
+                onClick={(e) => { e.stopPropagation(); setZoomedImage(null); }}
+                className="absolute top-0 right-0 m-4 sm:m-8 p-4 bg-white/5 hover:bg-[#ccff00] hover:text-black rounded-full border border-white/10 transition-all group scale-75 sm:scale-100"
+              >
+                <X className="w-6 h-6 group-hover:rotate-90 transition-transform duration-500" />
+              </button>
+              
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none">
+                <div className="px-4 py-2 bg-black/50 border border-white/10 rounded-full backdrop-blur-md">
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#ccff00]">Biological Detail Preview // High Res</span>
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
