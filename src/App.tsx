@@ -24,6 +24,7 @@ import {
   TrendingUp,
   Database,
   Maximize2,
+  Eye,
   ClipboardList,
   Image as ImageIcon,
   DollarSign,
@@ -765,6 +766,22 @@ export default function App() {
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                   />
+                  
+                  {/* Quick View Button */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedProduct(product);
+                        setSelectedSize('L');
+                      }}
+                      className="pointer-events-auto bg-[#ccff00] text-black px-6 py-3 font-black uppercase text-[10px] tracking-widest shadow-xl flex items-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 hover:bg-white"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Quick View
+                    </button>
+                  </div>
+
                   <button 
                     onClick={(e) => { e.stopPropagation(); addToCart(product.id, 'L'); }}
                     data-product-id={product.id}
@@ -822,7 +839,7 @@ export default function App() {
           <div className="relative">
             <div className="absolute -top-12 -right-12 w-64 h-64 bg-[#ccff00] rounded-full blur-3xl opacity-20" />
             <img 
-              src="https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=1000" 
+              src="/input_file_0.png" 
               className="relative z-10 w-full aspect-square object-cover border-8 border-black shadow-[20px_20px_0px_0px_rgba(204,255,0,1)]"
               alt="Brand vibes"
               referrerPolicy="no-referrer"
