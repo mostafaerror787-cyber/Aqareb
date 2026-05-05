@@ -110,47 +110,79 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 
 // Technical Line-Art Scorpion Logo (Biological but clean)
 const ScorpionLogo = ({ className = "w-10 h-10" }: { className?: string }) => (
-  <svg 
+  <motion.svg 
     viewBox="0 0 100 100" 
     className={className} 
     fill="none" 
     xmlns="http://www.w3.org/2000/svg"
+    whileHover="hover"
+    whileTap="tap"
   >
-    <g stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-      {/* Segmented Body Carapace */}
-      <path d="M50 22C46 22 42 26 42 35C42 45 46 52 50 54C54 52 58 45 58 35C58 26 54 22 50 22Z" />
-      <path d="M43 32H57" strokeWidth="0.5" opacity="0.4" />
-      <path d="M42 38H58" strokeWidth="0.5" opacity="0.4" />
-      <path d="M43 45H57" strokeWidth="0.5" opacity="0.4" />
+    <motion.g stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      {/* Cephalothorax (Body) */}
+      <motion.path 
+        d="M50 25C45 25 41 30 41 40C41 50 45 55 50 55C55 55 59 50 59 40C59 30 55 25 50 25Z" 
+        variants={{
+          hover: { scale: 1.05 }
+        }}
+      />
       
-      {/* Tail - Realistic Segments */}
-      <path d="M50 54L48 62C47 65 49 68 52 68L50 76C49 79 51 82 54 82C62 82 68 76 70 68C72 60 68 54 62 50" />
-      <path d="M48 62H52" strokeWidth="0.5" opacity="0.3" />
-      <path d="M50 76H54" strokeWidth="0.5" opacity="0.3" />
-      
-      {/* Detailed Stinger */}
-      <path d="M62 50L68 42L74 38C76 36 78 38 76 42L70 48" strokeWidth="1.5" />
-      <circle cx="76" cy="40" r="1.5" fill="currentColor" />
+      {/* Segmented Tail - Recursive curve */}
+      <motion.g
+        variants={{
+          hover: { rotate: [-1, 1, -1], transition: { repeat: Infinity, duration: 2, ease: "easeInOut" } }
+        }}
+      >
+        <path d="M50 55C48 60 49 65 52 68" strokeWidth="1.2" />
+        <path d="M52 68C55 72 58 74 62 74" strokeWidth="1.2" />
+        <path d="M62 74C68 74 72 70 74 64" strokeWidth="1.2" />
+        <path d="M74 64C76 58 74 52 70 48" strokeWidth="1.2" />
+        
+        {/* Aculeus (Stinger) */}
+        <motion.path 
+          d="M70 48L74 40C75 38 78 38 76 42L70 46" 
+          strokeWidth="2"
+          variants={{
+            hover: { x: [0, 2, 0], transition: { repeat: Infinity, duration: 0.5 } }
+          }}
+        />
+        <circle cx="76" cy="38" r="1" fill="currentColor" />
+      </motion.g>
 
-      {/* Articulated Claws */}
-      <path d="M42 32Q32 30 25 22L12 12C8 8 5 12 10 18L20 28Q25 32 35 32" />
-      <path d="M58 32Q68 30 75 22L88 12C92 8 95 12 90 18L80 28Q75 32 65 32" />
-      
-      {/* Serrated edge detail for claws */}
-      <path d="M12 12L15 15" strokeWidth="2" />
-      <path d="M88 12L85 15" strokeWidth="2" />
-      
-      {/* Legs (Articulated with joints) */}
-      <path d="M40 40L25 38L15 45" strokeWidth="0.8" />
-      <path d="M60 40L75 38L85 45" strokeWidth="0.8" />
-      
-      <path d="M38 48L20 52L12 65" strokeWidth="0.8" />
-      <path d="M62 48L80 52L88 65" strokeWidth="0.8" />
-      
-      <path d="M42 52L30 65L25 80" strokeWidth="0.8" />
-      <path d="M58 52L70 65L75 80" strokeWidth="0.8" />
-    </g>
-  </svg>
+      {/* Articulated Pedipalps (Claws) */}
+      <motion.g
+        variants={{
+          hover: { transition: { staggerChildren: 0.1 } }
+        }}
+      >
+        {/* Left Claw */}
+        <motion.path 
+          d="M41 35C35 32 30 28 25 22M25 22L15 15C12 12 10 15 13 18L22 28" 
+          variants={{ hover: { rotate: -5 } }}
+        />
+        {/* Right Claw */}
+        <motion.path 
+          d="M59 35C65 32 70 28 75 22M75 22L85 15C88 12 90 15 87 18L78 28" 
+          variants={{ hover: { rotate: 5 } }}
+        />
+      </motion.g>
+
+      {/* Walking Legs - 4 on each side */}
+      <g strokeWidth="0.8" opacity="0.8">
+        <path d="M42 42L30 38L20 42" />
+        <path d="M58 42L70 38L80 42" />
+        
+        <path d="M41 48L28 48L18 55" />
+        <path d="M59 48L72 48L82 55" />
+        
+        <path d="M43 52L32 58L25 70" />
+        <path d="M57 52L68 58L75 70" />
+
+        <path d="M45 54L38 65L35 80" />
+        <path d="M55 54L62 65L65 80" />
+      </g>
+    </motion.g>
+  </motion.svg>
 );
 
 export default function App() {
@@ -169,6 +201,7 @@ export default function App() {
   const [adminPassword, setAdminPassword] = useState('');
   const [loginError, setLoginError] = useState(false);
   const [orderConfirmed, setOrderConfirmed] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'instapay'>('cod');
   const [isLoaded, setIsLoaded] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   // Image Compression Utility
@@ -307,11 +340,21 @@ export default function App() {
   }, [selectedProduct]);
 
   useEffect(() => {
+    let lastScrollY = window.scrollY;
+    let ticking = false;
+
     const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
-      setShowBackToTop(window.scrollY > 800);
+      lastScrollY = window.scrollY;
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          setScrolled(lastScrollY > 50);
+          setShowBackToTop(lastScrollY > 800);
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -398,29 +441,22 @@ export default function App() {
             initial={{ opacity: 1 }}
             exit={{ 
               opacity: 0,
-              y: -100,
-              transition: { duration: 1, ease: [0.76, 0, 0.24, 1] }
+              transition: { duration: 0.8, ease: "easeOut" }
             }}
             className="fixed inset-0 z-[1000] bg-black flex flex-col items-center justify-center pointer-events-auto"
           >
             <motion.div
-              initial={{ scale: 0.5, opacity: 0, rotate: -10 }}
+              initial={{ scale: 0.8, opacity: 0 }}
               animate={{ 
                 scale: 1, 
                 opacity: 1, 
-                rotate: 0,
-                transition: { duration: 1.2, ease: "easeOut" }
+                transition: { duration: 1, ease: "easeOut" }
               }}
               className="relative"
             >
               <ScorpionLogo className="w-64 h-64 text-[#ccff00]" />
-              <motion.div 
-                animate={{ 
-                  scale: [1, 1.4, 1],
-                  opacity: [0.2, 0.5, 0.2]
-                }}
-                transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                className="absolute inset-0 bg-[#ccff00]/30 blur-[100px] -z-10 rounded-full" 
+              <div 
+                className="absolute inset-0 bg-[#ccff00]/10 blur-[80px] -z-10 rounded-full" 
               />
             </motion.div>
             
@@ -591,6 +627,10 @@ export default function App() {
           </h2>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-8 mb-8">
             <button 
+              onClick={() => {
+                const section = document.getElementById('products-section');
+                if (section) section.scrollIntoView({ behavior: 'smooth' });
+              }}
               className="group relative px-12 py-5 bg-white text-black font-black uppercase tracking-widest text-sm transition-all hover:bg-[#ccff00]"
               id="hero-cta"
             >
@@ -682,7 +722,7 @@ export default function App() {
       </section>
 
       {/* Featured Products */}
-      <section className="py-24 px-6 max-w-7xl mx-auto">
+      <section id="products-section" className="py-24 px-6 max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
           <div>
             <span className="text-[#ccff00] text-xs font-bold tracking-[0.3em] uppercase mb-2 block">Our Arsenal</span>
@@ -775,7 +815,7 @@ export default function App() {
                 }}
                 className="group cursor-pointer"
               >
-                <div className="relative aspect-[3/4] overflow-hidden bg-zinc-900 mb-6 cursor-zoom-in">
+                <div className="relative aspect-[3/4] overflow-hidden bg-zinc-900 mb-6 cursor-zoom-in group-hover:shadow-[0_0_30px_rgba(204,255,0,0.15)] transition-shadow duration-500">
                   <div className="absolute top-4 left-4 z-10">
                     <span className="px-2 py-1 bg-[#ccff00] text-black text-[10px] font-black uppercase tracking-widest">
                       {product.tag}
@@ -784,9 +824,8 @@ export default function App() {
                   <motion.img 
                     src={product.image} 
                     alt={product.name}
-                    whileHover={{ scale: 1.05, filter: 'grayscale(0%)' }}
-                    initial={{ filter: 'grayscale(100%)' }}
-                    transition={{ duration: 0.5, ease: 'easeOut' }}
+                    whileHover={{ scale: 1.05 }}
+                    transition={{ duration: 0.6, ease: [0.33, 1, 0.68, 1] }}
                     onClick={() => {
                       setSelectedProduct(product);
                       setSelectedSize('L');
@@ -795,18 +834,28 @@ export default function App() {
                     referrerPolicy="no-referrer"
                   />
                   
-                  {/* Quick View Button */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                  {/* Quick View & Zoom Buttons */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none bg-black/40">
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedProduct(product);
                         setSelectedSize('L');
                       }}
-                      className="pointer-events-auto bg-[#ccff00] text-black px-6 py-3 font-black uppercase text-[10px] tracking-widest shadow-xl flex items-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 hover:bg-white"
+                      className="pointer-events-auto bg-white text-black px-6 py-3 font-black uppercase text-[10px] tracking-widest shadow-xl flex items-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-[#ccff00]"
                     >
                       <Eye className="w-4 h-4" />
                       Quick View
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setZoomedImage(product.image);
+                      }}
+                      className="pointer-events-auto bg-black border border-white/20 text-white px-6 py-3 font-black uppercase text-[10px] tracking-widest shadow-xl flex items-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 hover:bg-white hover:text-black"
+                    >
+                      <Maximize2 className="w-4 h-4" />
+                      Detailed Zoom
                     </button>
                   </div>
 
@@ -1652,7 +1701,17 @@ export default function App() {
                             <div className="grid grid-cols-2 gap-8">
                               <div className="space-y-2">
                                 <p className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Contact Signal</p>
-                                <p className="text-[12px] font-mono text-white border-b border-white/5 pb-1 w-fit">{order.customerInfo.phone}</p>
+                                <div className="flex items-center gap-3">
+                                  <p className="text-[12px] font-mono text-white border-b border-white/5 pb-1 w-fit">{order.customerInfo.phone}</p>
+                                  <a 
+                                    href={`https://wa.me/20${order.customerInfo.phone.replace(/[^0-9]/g, '')}`} 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="p-1 px-2 bg-green-500/20 text-green-500 hover:bg-green-500 hover:text-white transition-all text-[8px] font-black uppercase tracking-widest rounded flex items-center gap-1"
+                                  >
+                                    WhatsApp
+                                  </a>
+                                </div>
                                 <p className="text-[10px] font-mono text-zinc-400 mt-1">{order.customerInfo.email}</p>
                               </div>
                               <div className="space-y-2">
@@ -2185,6 +2244,7 @@ export default function App() {
                         total: cartTotal,
                         status: 'pending',
                         customerInfo,
+                        paymentMethod,
                         createdAt: serverTimestamp()
                       };
 
@@ -2238,6 +2298,33 @@ export default function App() {
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Biological Deployment Address</label>
                       <textarea required rows={3} className="w-full bg-zinc-900 border-none p-4 text-sm font-mono focus:ring-1 focus:ring-[#ccff00]" placeholder="Street, Building, Floor, Cairo, EG" />
+                    </div>
+
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Payment Protocol</label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <button 
+                          type="button"
+                          onClick={() => setPaymentMethod('cod')}
+                          className={`p-4 text-[10px] font-black uppercase tracking-widest border transition-all ${paymentMethod === 'cod' ? 'bg-[#ccff00] text-black border-[#ccff00]' : 'bg-transparent text-white border-white/10 hover:border-white'}`}
+                        >
+                          Upon Extraction (COD)
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setPaymentMethod('instapay')}
+                          className={`p-4 text-[10px] font-black uppercase tracking-widest border transition-all ${paymentMethod === 'instapay' ? 'bg-[#ccff00] text-black border-[#ccff00]' : 'bg-transparent text-white border-white/10 hover:border-white'}`}
+                        >
+                          InstaPay Transmission
+                        </button>
+                      </div>
+                      {paymentMethod === 'instapay' && (
+                        <div className="p-4 bg-[#ccff00]/10 border border-[#ccff00]/20 text-[10px] font-bold uppercase tracking-widest text-[#ccff00] leading-relaxed">
+                          Transmission Target: <span className="text-white">mostafaerror787@instapay</span>
+                          <br />
+                          Please provide proof of payment during validation call.
+                        </div>
+                      )}
                     </div>
 
                     <div className="p-6 bg-[#ccff00]/5 border border-[#ccff00]/20 space-y-4">
